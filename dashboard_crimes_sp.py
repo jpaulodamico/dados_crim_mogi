@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard de Dados Criminais - SP",
+    page_title="Dashboard de Dados Criminais - Delegacia Seccional Mogi das Cruzes - SP",
     page_icon="🚨",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -16,7 +16,7 @@ st.set_page_config(
 # Função para carregar os dados
 @st.cache_data
 def load_data():
-    df = pd.read_csv('dados_criminais_limpos.csv')
+    df = pd.read_csv('SPDadosCriminais_2024_2025.csv')
     
     # Convertendo datas para datetime com tratamento de formatos mistos
     # Primeiro, garantir que todas as datas estão no mesmo formato
@@ -100,8 +100,13 @@ def main():
     local_css()
     
     # Título do dashboard
-    st.title("🚨 Dashboard de Dados Criminais - São Paulo")
-    st.markdown("### Análise interativa de ocorrências criminais em municípios de São Paulo")
+    st.title("🚨 Dashboard de Dados Criminais - Delegacia Seccional de Mogi das Cruzes - SP")
+    st.markdown("### Análise interativa de ocorrências criminais em municípios da região")
+    st.markdown("#### Dados de 2024 a 2025")
+    st.markdown("---")
+    st.markdown("### Carregando dados...")
+    st.spinner("Carregando dados, por favor aguarde...")
+    st.markdown("---")
     
     # Carregar dados
     try:
@@ -484,7 +489,7 @@ def main():
         
         # Rodapé
         st.markdown("---")
-        st.markdown("Dashboard desenvolvido para análise interativa de dados criminais de São Paulo (2024-2025)")
+        st.markdown("Dashboard desenvolvido para análise interativa de dados criminais da Região do Alto Tietê - Del.Sec. Mogi das Cruzes (2024-2025)")
         
     except Exception as e:
         st.error(f"Ocorreu um erro ao carregar os dados: {e}")
