@@ -16,7 +16,8 @@ st.set_page_config(
 # Função para carregar os dados
 @st.cache_data
 def load_data():
-    df = pd.read_csv('SPDadosCriminais_2024_2025.csv')
+    df = pd.read_csv('dados_criminais_limpos.csv', sep=';', encoding='latin1')
+    # Renomeando colunas para facilitar o uso
     
     # Convertendo datas para datetime com tratamento de formatos mistos
     # Primeiro, garantir que todas as datas estão no mesmo formato
