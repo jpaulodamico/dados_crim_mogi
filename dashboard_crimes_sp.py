@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard de Dados Criminais - SP",
+    page_title="ANÁLISE CRIMINAL - DEL. SEC. MOGI DAS CRUZES / SP",
     page_icon="🚨",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -116,8 +116,8 @@ def main():
     local_css()
     
     # Título do dashboard
-    st.title("🚨 Dashboard de Dados Criminais - São Paulo")
-    st.markdown("### Análise interativa de ocorrências criminais em municípios de São Paulo")
+    st.title("🚨 ANÁLISE CRIMINAL - DEL. SEC. MOGI DAS CRUZES / ALTO TIETÊ")
+    st.markdown("### Análise interativa de ocorrências criminais")
     
     # Carregar dados
     try:
