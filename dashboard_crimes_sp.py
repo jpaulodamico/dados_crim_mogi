@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard de Dados Criminais - Delegacia Seccional Mogi das Cruzes - SP",
+    page_title="Dashboard de Dados Criminais - SP",
     page_icon="🚨",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -17,7 +17,6 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     df = pd.read_csv('dados_criminais_limpos.csv')
-    # Renomeando colunas para facilitar o uso
     
     # Convertendo datas para datetime com tratamento de formatos mistos
     # Primeiro, garantir que todas as datas estão no mesmo formato
@@ -30,12 +29,28 @@ def load_data():
         # Se falhar, tenta outros formatos
         pass
     
-    # Criando colunas de ano e mês para facilitar a análise
-    df['ANO'] = df['DATA_OCORRENCIA_BO'].dt.year
-    df['MES'] = df['DATA_OCORRENCIA_BO'].dt.month
+    # Criando colunas de ano e mês para DATA_OCORRENCIA_BO
+    df['ANO_OCORRENCIA'] = df['DATA_OCORRENCIA_BO'].dt.year
+    df['MES_OCORRENCIA'] = df['DATA_OCORRENCIA_BO'].dt.month
     
-    # Criar MES_ANO a partir das colunas ANO e MES para evitar problemas com NaT
-    df['MES_ANO_CALC'] = df.apply(lambda x: f"{x['MES']:02d}/{x['ANO']}" if pd.notna(x['MES']) and pd.notna(x['ANO']) else "Desconhecido", axis=1)
+    # Criando colunas de ano e mês para DATA_REGISTRO
+    df['ANO_REGISTRO'] = df['DATA_REGISTRO'].dt.year
+    df['MES_REGISTRO'] = df['DATA_REGISTRO'].dt.month
+    
+    # Criar MES_ANO para ambas as datas
+    df['MES_ANO_OCORRENCIA'] = df.apply(
+        lambda x: f"{x['MES_OCORRENCIA']:02d}/{x['ANO_OCORRENCIA']}" 
+        if pd.notna(x['MES_OCORRENCIA']) and pd.notna(x['ANO_OCORRENCIA']) 
+        else "Desconhecido", 
+        axis=1
+    )
+    
+    df['MES_ANO_REGISTRO'] = df.apply(
+        lambda x: f"{x['MES_REGISTRO']:02d}/{x['ANO_REGISTRO']}" 
+        if pd.notna(x['MES_REGISTRO']) and pd.notna(x['ANO_REGISTRO']) 
+        else "Desconhecido", 
+        axis=1
+    )
     
     return df
 
@@ -101,13 +116,8 @@ def main():
     local_css()
     
     # Título do dashboard
-    st.title("🚨 Dashboard de Dados Criminais - Delegacia Seccional de Mogi das Cruzes - SP")
-    st.markdown("### Análise interativa de ocorrências criminais em municípios da região")
-    st.markdown("#### Dados de 2024 a 2025")
-    st.markdown("---")
-    st.markdown("### Carregando dados...")
-    st.spinner("Carregando dados, por favor aguarde...")
-    st.markdown("---")
+    st.title("🚨 Dashboard de Dados Criminais - São Paulo")
+    st.markdown("### Análise interativa de ocorrências criminais em municípios de São Paulo")
     
     # Carregar dados
     try:
@@ -116,23 +126,23 @@ def main():
         # Sidebar para filtros
         st.sidebar.header("Filtros")
         
-        # Filtro de período - usando anos em vez de datas específicas para evitar problemas com NaT
-        anos_disponiveis = sorted(df['ANO'].dropna().unique().astype(int).tolist())
+        # Filtro de período - usando anos de REGISTRO em vez de ocorrência
+        anos_disponiveis = sorted(df['ANO_REGISTRO'].dropna().unique().astype(int).tolist())
         if anos_disponiveis:
             ano_min = min(anos_disponiveis)
             ano_max = max(anos_disponiveis)
             
             anos_selecionados = st.sidebar.slider(
-                "Período (Anos)",
+                "Período de Registro (Anos)",
                 min_value=ano_min,
                 max_value=ano_max,
                 value=(ano_min, ano_max)
             )
             
-            filtered_df = df[(df['ANO'] >= anos_selecionados[0]) & (df['ANO'] <= anos_selecionados[1])]
+            filtered_df = df[(df['ANO_REGISTRO'] >= anos_selecionados[0]) & (df['ANO_REGISTRO'] <= anos_selecionados[1])]
         else:
             filtered_df = df
-            st.sidebar.warning("Não foi possível determinar o período dos dados.")
+            st.sidebar.warning("Não foi possível determinar o período dos dados de registro.")
         
         # Filtro de município
         municipios = sorted(df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].dropna().unique())
@@ -145,7 +155,7 @@ def main():
         if selected_municipios:
             filtered_df = filtered_df[filtered_df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].isin(selected_municipios)]
         
-        # Filtro de tipo de crime
+        # Filtro de tipo de crime (NATUREZA_APURADA)
         crimes = sorted(df['NATUREZA_APURADA'].dropna().unique())
         selected_crimes = st.sidebar.multiselect(
             "Tipos de Crime",
@@ -155,6 +165,28 @@ def main():
         
         if selected_crimes:
             filtered_df = filtered_df[filtered_df['NATUREZA_APURADA'].isin(selected_crimes)]
+        
+        # Filtro de RUBRICA
+        rubricas = sorted(df['RUBRICA'].dropna().unique())
+        selected_rubricas = st.sidebar.multiselect(
+            "Rubricas",
+            options=rubricas,
+            default=[]  # Nenhuma selecionada por padrão
+        )
+        
+        if selected_rubricas:
+            filtered_df = filtered_df[filtered_df['RUBRICA'].isin(selected_rubricas)]
+        
+        # Filtro de DESCR_CONDUTA
+        condutas = sorted(df['DESCR_CONDUTA'].dropna().unique())
+        selected_condutas = st.sidebar.multiselect(
+            "Condutas",
+            options=condutas,
+            default=[]  # Nenhuma selecionada por padrão
+        )
+        
+        if selected_condutas:
+            filtered_df = filtered_df[filtered_df['DESCR_CONDUTA'].isin(selected_condutas)]
         
         # Verificar se há dados após a filtragem
         if filtered_df.empty:
@@ -199,7 +231,13 @@ def main():
             """, unsafe_allow_html=True)
         
         # Abas para diferentes visualizações
-        tab1, tab2, tab3 = st.tabs(["📊 Distribuição de Crimes", "📅 Análise Temporal", "🏙️ Análise por Município"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📊 Distribuição de Crimes", 
+            "📅 Análise Temporal", 
+            "🏙️ Análise por Município",
+            "📑 Análise por Rubrica",
+            "📍 Locais de Ocorrência"
+        ])
         
         with tab1:
             st.markdown("## Distribuição de Crimes")
@@ -284,28 +322,28 @@ def main():
         with tab2:
             st.markdown("## Análise Temporal")
             
-            # Análise por ano
-            temporal = filtered_df.groupby('ANO').size().reset_index(name='Quantidade')
-            temporal = temporal.sort_values('ANO')
+            # Análise por ano de registro
+            temporal_registro = filtered_df.groupby('ANO_REGISTRO').size().reset_index(name='Quantidade')
+            temporal_registro = temporal_registro.sort_values('ANO_REGISTRO')
             
-            if not temporal.empty and len(temporal) > 1:
+            if not temporal_registro.empty and len(temporal_registro) > 1:
                 fig = px.line(
-                    temporal, 
-                    x='ANO', 
+                    temporal_registro, 
+                    x='ANO_REGISTRO', 
                     y='Quantidade',
-                    title='Evolução de Ocorrências ao Longo dos Anos',
+                    title='Evolução de Registros ao Longo dos Anos',
                     markers=True
                 )
                 
                 fig.update_layout(
-                    xaxis_title="Ano",
+                    xaxis_title="Ano de Registro",
                     yaxis_title="Número de Ocorrências",
                     height=500
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("Não há dados suficientes para gerar o gráfico de evolução temporal.")
+                st.warning("Não há dados suficientes para gerar o gráfico de evolução temporal por ano de registro.")
             
             # Análise por dia da semana e tipo de crime
             col1, col2 = st.columns(2)
@@ -351,13 +389,13 @@ def main():
                 if top_crimes:
                     top_crimes_df = filtered_df[filtered_df['NATUREZA_APURADA'].isin(top_crimes)]
                     
-                    # Agrupar por ano e tipo de crime
-                    crime_temporal = top_crimes_df.groupby(['ANO', 'NATUREZA_APURADA']).size().reset_index(name='Quantidade')
+                    # Agrupar por ano de registro e tipo de crime
+                    crime_temporal = top_crimes_df.groupby(['ANO_REGISTRO', 'NATUREZA_APURADA']).size().reset_index(name='Quantidade')
                     
                     if not crime_temporal.empty and len(crime_temporal) > 3:
                         fig = px.line(
                             crime_temporal, 
-                            x='ANO', 
+                            x='ANO_REGISTRO', 
                             y='Quantidade',
                             color='NATUREZA_APURADA',
                             title='Evolução dos 3 Crimes Mais Comuns',
@@ -365,7 +403,7 @@ def main():
                         )
                         
                         fig.update_layout(
-                            xaxis_title="Ano",
+                            xaxis_title="Ano de Registro",
                             yaxis_title="Número de Ocorrências",
                             height=400
                         )
@@ -488,9 +526,212 @@ def main():
                     st.warning("Não há dados suficientes para gerar o gráfico de locais por município.")
                 st.markdown('</div>', unsafe_allow_html=True)
         
+        with tab4:
+            st.markdown("## Análise por Rubrica")
+            
+            # Distribuição por Rubrica
+            rubrica_counts = filtered_df['RUBRICA'].value_counts().reset_index()
+            rubrica_counts.columns = ['Rubrica', 'Quantidade']
+            
+            if not rubrica_counts.empty:
+                fig = px.bar(
+                    rubrica_counts.head(15), 
+                    x='Rubrica', 
+                    y='Quantidade',
+                    title='Top 15 Rubricas Mais Frequentes',
+                    color='Quantidade',
+                    color_continuous_scale='Blues',
+                    template='plotly_white'
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Rubrica",
+                    yaxis_title="Número de Ocorrências",
+                    height=500,
+                    xaxis={'tickangle': 45}
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Não há dados suficientes para gerar o gráfico de distribuição por rubrica.")
+            
+            # Cruzamento entre Rubrica e DESCR_CONDUTA
+            st.markdown("### Cruzamento entre Rubrica e Conduta")
+            
+            # Selecionar as 5 rubricas mais comuns
+            top_rubricas = rubrica_counts['Rubrica'].head(5).tolist() if not rubrica_counts.empty else []
+            
+            if top_rubricas:
+                # Filtrar para as rubricas selecionadas
+                top_rub_df = filtered_df[filtered_df['RUBRICA'].isin(top_rubricas)]
+                
+                # Contar as condutas mais comuns para cada rubrica
+                rub_conduta = top_rub_df.groupby(['RUBRICA', 'DESCR_CONDUTA']).size().reset_index(name='Quantidade')
+                
+                # Remover valores nulos
+                rub_conduta = rub_conduta.dropna()
+                
+                if not rub_conduta.empty:
+                    fig = px.bar(
+                        rub_conduta, 
+                        x='RUBRICA', 
+                        y='Quantidade',
+                        color='DESCR_CONDUTA',
+                        title='Distribuição de Condutas por Rubrica',
+                        barmode='group'
+                    )
+                    
+                    fig.update_layout(
+                        xaxis_title="Rubrica",
+                        yaxis_title="Número de Ocorrências",
+                        height=500,
+                        xaxis={'tickangle': 45}
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Não há dados suficientes para gerar o cruzamento entre rubrica e conduta.")
+            else:
+                st.warning("Não há dados suficientes para identificar as rubricas mais comuns.")
+            
+            # Cruzamento entre Rubrica e NATUREZA_APURADA
+            st.markdown("### Cruzamento entre Rubrica e Natureza Apurada")
+            
+            if top_rubricas:
+                # Contar as naturezas mais comuns para cada rubrica
+                rub_natureza = top_rub_df.groupby(['RUBRICA', 'NATUREZA_APURADA']).size().reset_index(name='Quantidade')
+                
+                if not rub_natureza.empty:
+                    fig = px.sunburst(
+                        rub_natureza,
+                        path=['RUBRICA', 'NATUREZA_APURADA'],
+                        values='Quantidade',
+                        title='Relação entre Rubrica e Natureza Apurada'
+                    )
+                    
+                    fig.update_layout(height=600)
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Não há dados suficientes para gerar o cruzamento entre rubrica e natureza apurada.")
+            else:
+                st.warning("Não há dados suficientes para identificar as rubricas mais comuns.")
+        
+        with tab5:
+            st.markdown("## Locais de Ocorrência")
+            
+            # Análise detalhada de locais
+            st.markdown("### Ocorrências por Cidade, Logradouro e Delegacia")
+            
+            # Tabela de locais com mais ocorrências
+            st.markdown("#### Top Locais com Mais Ocorrências")
+            
+            # Agrupar por cidade, logradouro e número
+            locais_detalhados = filtered_df.groupby(['NOME_MUNICIPIO_CIRCUNSCRIÇÃO', 'LOGRADOURO', 'NUMERO_LOGRADOURO']).size().reset_index(name='Quantidade')
+            locais_detalhados = locais_detalhados.sort_values('Quantidade', ascending=False)
+            
+            if not locais_detalhados.empty:
+                # Mostrar os top 20 locais
+                st.dataframe(locais_detalhados.head(20), use_container_width=True)
+                
+                # Gráfico de barras para os top 10 locais
+                top_locais = locais_detalhados.head(10).copy()
+                top_locais['Local'] = top_locais.apply(
+                    lambda x: f"{x['NOME_MUNICIPIO_CIRCUNSCRIÇÃO']} - {x['LOGRADOURO']}, {x['NUMERO_LOGRADOURO']}" 
+                    if pd.notna(x['NUMERO_LOGRADOURO']) 
+                    else f"{x['NOME_MUNICIPIO_CIRCUNSCRIÇÃO']} - {x['LOGRADOURO']}", 
+                    axis=1
+                )
+                
+                fig = px.bar(
+                    top_locais, 
+                    x='Local', 
+                    y='Quantidade',
+                    title='Top 10 Locais com Mais Ocorrências',
+                    color='Quantidade',
+                    color_continuous_scale='Blues'
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Local",
+                    yaxis_title="Número de Ocorrências",
+                    height=500,
+                    xaxis={'tickangle': 45}
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Não há dados suficientes para gerar a análise detalhada de locais.")
+            
+            # Análise por delegacia
+            st.markdown("#### Ocorrências por Delegacia")
+            
+            delegacia_counts = filtered_df['NOME_DELEGACIA_CIRCUNSCRIÇÃO'].value_counts().reset_index()
+            delegacia_counts.columns = ['Delegacia', 'Quantidade']
+            
+            if not delegacia_counts.empty:
+                fig = px.bar(
+                    delegacia_counts.head(15), 
+                    x='Delegacia', 
+                    y='Quantidade',
+                    title='Top 15 Delegacias com Mais Ocorrências',
+                    color='Quantidade',
+                    color_continuous_scale='Blues'
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Delegacia",
+                    yaxis_title="Número de Ocorrências",
+                    height=500,
+                    xaxis={'tickangle': 45}
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Cruzamento entre delegacia e tipo de crime
+                st.markdown("#### Tipos de Crime por Delegacia")
+                
+                # Selecionar as 5 delegacias com mais ocorrências
+                top_delegacias = delegacia_counts['Delegacia'].head(5).tolist()
+                
+                # Filtrar para as delegacias selecionadas
+                top_del_df = filtered_df[filtered_df['NOME_DELEGACIA_CIRCUNSCRIÇÃO'].isin(top_delegacias)]
+                
+                # Contar os tipos de crimes mais comuns para cada delegacia
+                del_crime = top_del_df.groupby(['NOME_DELEGACIA_CIRCUNSCRIÇÃO', 'NATUREZA_APURADA']).size().reset_index(name='Quantidade')
+                
+                # Pegar os 5 crimes mais comuns para cada delegacia
+                top_crimes_por_del = []
+                for delegacia in top_delegacias:
+                    del_data = del_crime[del_crime['NOME_DELEGACIA_CIRCUNSCRIÇÃO'] == delegacia]
+                    top_5 = del_data.nlargest(5, 'Quantidade')
+                    top_crimes_por_del.append(top_5)
+                
+                del_crime_top = pd.concat(top_crimes_por_del)
+                
+                fig = px.bar(
+                    del_crime_top, 
+                    x='NATUREZA_APURADA', 
+                    y='Quantidade',
+                    color='NOME_DELEGACIA_CIRCUNSCRIÇÃO',
+                    title='Top 5 Crimes por Delegacia',
+                    barmode='group'
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Tipo de Crime",
+                    yaxis_title="Número de Ocorrências",
+                    height=500,
+                    xaxis={'categoryorder':'total descending', 'tickangle': 45}
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Não há dados suficientes para gerar a análise por delegacia.")
+        
         # Rodapé
         st.markdown("---")
-        st.markdown("Dashboard desenvolvido para análise interativa de dados criminais da Região do Alto Tietê - Del.Sec. Mogi das Cruzes (2024-2025)")
+        st.markdown("Dashboard desenvolvido para análise interativa de dados criminais de São Paulo (2024-2025)")
         
     except Exception as e:
         st.error(f"Ocorreu um erro ao carregar os dados: {e}")
