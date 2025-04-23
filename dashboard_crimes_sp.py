@@ -84,7 +84,7 @@ def main():
     load_assets()
 
     # animação Lottie
-    lottie = load_lottie("https://assets8.lottiefiles.com/packages/lf20_j1adxtyb.json")
+    lottie = load_lottie("https://lottie.host/23937f51-f9f9-4cac-9261-e6e5d56e89b1/va9RLSWxr6.lottie")
     if lottie:
         st_lottie(lottie, height=120, key="crime")
 
