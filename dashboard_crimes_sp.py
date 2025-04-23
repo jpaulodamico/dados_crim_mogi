@@ -5,6 +5,7 @@ import requests
 from streamlit_lottie import st_lottie
 from streamlit_option_menu import option_menu
 
+# --- Configuração da página ---
 st.set_page_config(
     page_title="Dashboard de Dados Criminais - SP",
     page_icon="🚨",
@@ -12,6 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- Assets (fonte, CSS) ---
 def load_assets():
     st.markdown("""
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -26,35 +28,36 @@ def load_assets():
     </style>
     """, unsafe_allow_html=True)
 
+# --- Animação Lottie ---
 def load_lottie(url):
     r = requests.get(url)
     return r.json() if r.status_code == 200 else None
 
+# --- Carregamento e preparação dos dados ---
 @st.cache_data
 def load_data():
     df = pd.read_csv('dados_criminais_limpos.csv')
-    # Converte explicitamente para datetime
+    # Converte datas
     df['DATA_REGISTRO']      = pd.to_datetime(df['DATA_REGISTRO'], dayfirst=True, errors='coerce')
     df['DATA_OCORRENCIA_BO'] = pd.to_datetime(df['DATA_OCORRENCIA_BO'], errors='coerce')
-    # Extrai componentes de data
+    # Extrai componentes temporais
     df['ANO_REGISTRO']       = df['DATA_REGISTRO'].dt.year
     df['MES_REGISTRO']       = df['DATA_REGISTRO'].dt.month
     df['ANO_OCORRENCIA']     = df['DATA_OCORRENCIA_BO'].dt.year
     df['MES_OCORRENCIA']     = df['DATA_OCORRENCIA_BO'].dt.month
     df['DIA_SEMANA']         = df['DATA_OCORRENCIA_BO'].dt.day_name()
-    # Garante que texto não seja nulo
-    for c in ['BAIRRO','LOGRADOURO','NUMERO_LOGRADOURO',
+    # Garante colunas de texto não nulas
+    for c in ['DESCR_SUBTIPOLOCAL','BAIRRO','LOGRADOURO','NUMERO_LOGRADOURO',
               'NOME_DELEGACIA_CIRCUNSCRIÇÃO','NOME_MUNICIPIO_CIRCUNSCRIÇÃO',
               'RUBRICA','DESCR_CONDUTA','NATUREZA_APURADA','MES_ANO']:
         if c in df.columns:
             df[c] = df[c].fillna('').astype(str)
-    # Converte lat/lon para numérico (se existir)
+    # Lat/Lon numérico (se existir)
     if 'LATITUDE' in df.columns:
-        df['LATITUDE']  = pd.to_numeric(df['LATITUDE'],  errors='coerce')
+        df['LATITUDE'] = pd.to_numeric(df['LATITUDE'], errors='coerce')
     if 'LONGITUDE' in df.columns:
         df['LONGITUDE'] = pd.to_numeric(df['LONGITUDE'], errors='coerce')
     return df
-
 
 def main():
     load_assets()
@@ -67,7 +70,7 @@ def main():
 
     df = load_data()
 
-    # Sidebar
+    # --- Sidebar de filtros ---
     with st.sidebar:
         menu = option_menu(
             "📋 Navegação",
@@ -78,19 +81,18 @@ def main():
         )
         st.header("Filtros")
 
-        # filtro anos registro
+        # Período de registro
         anos = sorted(df['ANO_REGISTRO'].dropna().unique().astype(int))
         sel_anos = st.slider("Registro (anos)", min(anos), max(anos), (min(anos), max(anos)))
-        df = df[(df['ANO_REGISTRO']>=sel_anos[0])&(df['ANO_REGISTRO']<=sel_anos[1])]
+        df = df[(df['ANO_REGISTRO'] >= sel_anos[0]) & (df['ANO_REGISTRO'] <= sel_anos[1])]
 
-        # filtros sem seleção padrão
-        sel_mun    = st.multiselect("Municípios", sorted(df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].unique()), default=[])
-        sel_nat    = st.multiselect("Natureza Apurada", sorted(df['NATUREZA_APURADA'].unique()), default=[])
-        sel_rub    = st.multiselect("Rubricas", sorted(df['RUBRICA'].unique()), default=[])
-        sel_cond   = st.multiselect("Condutas", sorted(df['DESCR_CONDUTA'].unique()), default=[])
-        sel_del    = st.multiselect("Delegacia Circ.", sorted(df['NOME_DELEGACIA_CIRCUNSCRIÇÃO'].unique()), default=[])
+        # Filtros sem seleção padrão
+        sel_mun  = st.multiselect("Municípios", sorted(df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].unique()), default=[])
+        sel_nat  = st.multiselect("Natureza Apurada", sorted(df['NATUREZA_APURADA'].unique()), default=[])
+        sel_rub  = st.multiselect("Rubricas", sorted(df['RUBRICA'].unique()), default=[])
+        sel_cond = st.multiselect("Condutas", sorted(df['DESCR_CONDUTA'].unique()), default=[])
+        sel_del  = st.multiselect("Delegacia Circ.", sorted(df['NOME_DELEGACIA_CIRCUNSCRIÇÃO'].unique()), default=[])
 
-        # Aplicar filtros
         if sel_mun:  df = df[df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].isin(sel_mun)]
         if sel_nat:  df = df[df['NATUREZA_APURADA'].isin(sel_nat)]
         if sel_rub:  df = df[df['RUBRICA'].isin(sel_rub)]
@@ -103,41 +105,49 @@ def main():
         st.warning("Não há dados para os filtros selecionados.")
         return
 
-    # Métricas
-    mais_comum = df['NATUREZA_APURADA'].mode().iloc[0] if len(df)>0 else "N/A"
-    c1,c2,c3,c4 = st.columns(4)
+    # --- Métricas principais ---
+    mais_comum = df['NATUREZA_APURADA'].mode().iloc[0] if not df.empty else "N/A"
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Ocorrências", f"{len(df):,}")
     c2.metric("Tipos de Crime", df['NATUREZA_APURADA'].nunique())
     c3.metric("Municípios", df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].nunique())
     c4.metric("Crime Mais Comum", mais_comum)
 
-    tab1,tab2,tab3,tab4,tab5 = st.tabs(
+    # --- Abas ---
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
         ["📊 Distribuição","📅 Temporal","🏙 Municípios","📑 Rubricas","🏠 ENDEREÇOS"]
     )
 
-    # Distribuição
+    # 1) Distribuição de Crimes
     with tab1:
         st.header("Top 10 Crimes")
         vc = df['NATUREZA_APURADA'].value_counts()
-        if len(vc)>1:
-            top10 = vc.head(10).reset_index(name='Qtd').rename(columns={'index':'Crime'})
-            fig = px.bar(top10, x='Crime', y='Qtd',
-                         color='Qtd', color_continuous_scale='Blues',
-                         template='plotly_white')
+        if vc.shape[0] > 1:
+            top10 = vc.rename_axis('Crime')\
+                      .reset_index(name='Qtd')\
+                      .head(10)
+            fig = px.bar(
+                top10, x='Crime', y='Qtd',
+                color='Qtd', color_continuous_scale='Blues',
+                template='plotly_white'
+            )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Selecione ao menos 2 categorias para comparar.")
 
-    # Temporal mês a mês e dia da semana
+    # 2) Análise Temporal
     with tab2:
         st.header("Análise Temporal")
         df_time = df.dropna(subset=['DATA_OCORRENCIA_BO'])
-        # Série Mensal
-        if df_time.shape[0]>1:
+        # Mês a mês
+        if df_time.shape[0] > 1:
             df_time['MES_ANO_DT'] = pd.to_datetime(df_time['MES_ANO'], format='%m/%Y', errors='coerce')
-            mensal = df_time.groupby('MES_ANO_DT').size().reset_index(name='Qtd')
-            fig1 = px.line(mensal, x='MES_ANO_DT', y='Qtd',
-                           title="Ocorrências Mês a Mês", markers=True)
+            mensal = df_time.groupby('MES_ANO_DT')\
+                             .size().reset_index(name='Qtd')
+            fig1 = px.line(
+                mensal, x='MES_ANO_DT', y='Qtd',
+                title="Ocorrências Mês a Mês", markers=True
+            )
             fig1.update_layout(xaxis_title="Mês/Ano", yaxis_title="Qtd")
             st.plotly_chart(fig1, use_container_width=True)
         else:
@@ -145,42 +155,52 @@ def main():
 
         # Dia da semana
         dias = df_time['DIA_SEMANA'].value_counts()
-        if len(dias)>1:
+        if dias.shape[0] > 1:
             ordem = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-            dias_df = dias.reindex(ordem).dropna().reset_index(name='Qtd').rename(columns={'index':'Dia'})
+            dias_df = dias.reindex(ordem).dropna()\
+                         .reset_index(name='Qtd')\
+                         .rename(columns={'index':'Dia'})
             dias_df['Dia_PT'] = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]
-            fig2 = px.bar(dias_df, x='Dia_PT', y='Qtd',
-                          title="Ocorrências por Dia da Semana",
-                          color='Qtd', color_continuous_scale='Blues')
+            fig2 = px.bar(
+                dias_df, x='Dia_PT', y='Qtd',
+                title="Ocorrências por Dia da Semana",
+                color='Qtd', color_continuous_scale='Blues'
+            )
             st.plotly_chart(fig2, use_container_width=True)
         else:
-            st.info("Selecione ao menos 2 dias para comparação.")
+            st.info("Selecione ao menos 2 dias para comparar.")
 
-    # Municípios comparativo
+    # 3) Comparativo por Município
     with tab3:
         st.header("Comparativo por Município")
         vc_mun = df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].value_counts()
-        if len(vc_mun)>1:
-            mun_df = vc_mun.reset_index(name='Qtd').rename(columns={'index':'Município'})
-            fig = px.bar(mun_df, x='Município', y='Qtd',
-                         color='Qtd', color_continuous_scale='Blues')
+        if vc_mun.shape[0] > 1:
+            mun_df = vc_mun.rename_axis('Município')\
+                           .reset_index(name='Qtd')
+            fig = px.bar(
+                mun_df, x='Município', y='Qtd',
+                color='Qtd', color_continuous_scale='Blues'
+            )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Selecione ao menos 2 municípios para comparar.")
 
-    # Rubricas comparativo
+    # 4) Comparativo por Rubrica
     with tab4:
         st.header("Comparativo por Rubrica")
         vc_rub = df['RUBRICA'].value_counts()
-        if len(vc_rub)>1:
-            rub_df = vc_rub.reset_index(name='Qtd').rename(columns={'index':'Rubrica'})
-            fig = px.bar(rub_df, x='Rubrica', y='Qtd',
-                         color='Qtd', color_continuous_scale='Blues')
+        if vc_rub.shape[0] > 1:
+            rub_df = vc_rub.rename_axis('Rubrica')\
+                           .reset_index(name='Qtd')
+            fig = px.bar(
+                rub_df, x='Rubrica', y='Qtd',
+                color='Qtd', color_continuous_scale='Blues'
+            )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Selecione ao menos 2 rubricas para comparar.")
 
-    # Endereços
+    # 5) Endereços
     with tab5:
         st.header("Endereços das Ocorrências")
         addr = df[['LOGRADOURO','NUMERO_LOGRADOURO','BAIRRO']].dropna(subset=['LOGRADOURO'])
@@ -194,5 +214,5 @@ def main():
     st.markdown("---")
     st.caption("Dashboard desenvolvido para SP (2024–2025)")
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
