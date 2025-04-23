@@ -32,19 +32,29 @@ def load_lottie(url):
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv('dados_criminais_limpos.csv', parse_dates=['DATA_REGISTRO','DATA_OCORRENCIA_BO'])
-    # Prepara colunas temporais
-    df['ANO_REGISTRO']   = df['DATA_REGISTRO'].dt.year
-    df['MES_REGISTRO']   = df['DATA_REGISTRO'].dt.month
-    df['ANO_OCORRENCIA'] = df['DATA_OCORRENCIA_BO'].dt.year
-    df['MES_OCORRENCIA'] = df['DATA_OCORRENCIA_BO'].dt.month
-    df['DIA_SEMANA']     = df['DATA_OCORRENCIA_BO'].dt.day_name()
-    # Geocoding não usado—mantemos apenas a limpeza
-    for c in ['BAIRRO','LOGRADOURO','NUMERO_LOGRADOURO','NOME_DELEGACIA_CIRCUNSCRIÇÃO',
-              'NOME_MUNICIPIO_CIRCUNSCRIÇÃO','RUBRICA','DESCR_CONDUTA','NATUREZA_APURADA','MES_ANO']:
-        if c in df:
+    df = pd.read_csv('dados_criminais_limpos.csv')
+    # Converte explicitamente para datetime
+    df['DATA_REGISTRO']      = pd.to_datetime(df['DATA_REGISTRO'], dayfirst=True, errors='coerce')
+    df['DATA_OCORRENCIA_BO'] = pd.to_datetime(df['DATA_OCORRENCIA_BO'], errors='coerce')
+    # Extrai componentes de data
+    df['ANO_REGISTRO']       = df['DATA_REGISTRO'].dt.year
+    df['MES_REGISTRO']       = df['DATA_REGISTRO'].dt.month
+    df['ANO_OCORRENCIA']     = df['DATA_OCORRENCIA_BO'].dt.year
+    df['MES_OCORRENCIA']     = df['DATA_OCORRENCIA_BO'].dt.month
+    df['DIA_SEMANA']         = df['DATA_OCORRENCIA_BO'].dt.day_name()
+    # Garante que texto não seja nulo
+    for c in ['BAIRRO','LOGRADOURO','NUMERO_LOGRADOURO',
+              'NOME_DELEGACIA_CIRCUNSCRIÇÃO','NOME_MUNICIPIO_CIRCUNSCRIÇÃO',
+              'RUBRICA','DESCR_CONDUTA','NATUREZA_APURADA','MES_ANO']:
+        if c in df.columns:
             df[c] = df[c].fillna('').astype(str)
+    # Converte lat/lon para numérico (se existir)
+    if 'LATITUDE' in df.columns:
+        df['LATITUDE']  = pd.to_numeric(df['LATITUDE'],  errors='coerce')
+    if 'LONGITUDE' in df.columns:
+        df['LONGITUDE'] = pd.to_numeric(df['LONGITUDE'], errors='coerce')
     return df
+
 
 def main():
     load_assets()
