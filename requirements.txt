@@ -6,3 +6,4 @@ streamlit
 pydeck 
 streamlit-lottie 
 streamlit-option-menu
+streamlit-folium
