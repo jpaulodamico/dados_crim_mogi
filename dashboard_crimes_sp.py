@@ -54,6 +54,7 @@ def load_data():
             df[c] = df[c].fillna('').astype(str)
     return df
 
+
 def main():
     load_assets()
     lottie = load_lottie("https://assets8.lottiefiles.com/packages/lf20_j1adxtyb.json")
@@ -69,26 +70,24 @@ def main():
     with st.sidebar:
         menu = option_menu(
             "📋 Navegação",
-            ["Distribuição","Temporal","Municípios","Rubricas","ENDEREÇOS"],
+            ["📊 Distribuição","📅 Temporal","🏙 Municípios","📑 Rubricas","🏠 ENDEREÇOS"],
             icons=["bar-chart","calendar","geo-alt","list-task","house"],
             menu_icon="cast",
             default_index=0
         )
         st.header("Filtros")
 
-        # 1) Período de registro
-        anos = sorted(df['ANO_REGISTRO'].dropna().unique().astype(int))
-        sel_anos = st.slider("Registro (anos)", min(anos), max(anos), (min(anos), max(anos)))
-        df = df[(df['ANO_REGISTRO'] >= sel_anos[0]) & (df['ANO_REGISTRO'] <= sel_anos[1])]
-
-        # 2) Ocorrência mês/ano (apenas 2024 e 2025)
-        mes_anos = sorted(df['MES_ANO'].unique())
-        default_ma = [m for m in mes_anos if m.endswith('/2024') or m.endswith('/2025')]
-        sel_ma = st.multiselect("Mês/Ano Ocorrência", mes_anos, default=default_ma)
+        # Filtro de Mês/Ano Ocorrência: somente meses de 2024 e 2025
+        all_mes_anos = sorted({m for m in df['MES_ANO'].unique() if m.endswith('/2024') or m.endswith('/2025')})
+        sel_ma = st.multiselect(
+            "Mês/Ano Ocorrência", 
+            options=all_mes_anos, 
+            default=all_mes_anos
+        )
         if sel_ma:
             df = df[df['MES_ANO'].isin(sel_ma)]
 
-        # 3) Demais filtros (vazios por padrão)
+        # Demais filtros sem seleção padrão
         sel_mun  = st.multiselect("Municípios", sorted(df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].unique()), default=[])
         sel_nat  = st.multiselect("Natureza Apurada", sorted(df['NATUREZA_APURADA'].unique()), default=[])
         sel_rub  = st.multiselect("Rubricas", sorted(df['RUBRICA'].unique()), default=[])
@@ -107,7 +106,7 @@ def main():
         st.warning("Não há dados para os filtros selecionados.")
         return
 
-    # --- Métricas ---
+    # --- Métricas principais ---
     mais_comum = df['NATUREZA_APURADA'].mode().iloc[0] if not df.empty else "N/A"
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Ocorrências", f"{len(df):,}")
@@ -116,45 +115,37 @@ def main():
     c4.metric("Crime Mais Comum", mais_comum)
 
     # --- Abas ---
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["📊 Distribuição","📅 Temporal","🏙 Municípios","📑 Rubricas","🏠 ENDEREÇOS"]
-    )
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 Distribuição","📅 Temporal","🏙 Municípios","📑 Rubricas","🏠 ENDEREÇOS"
+    ])
 
-    # 1) Distribuição
+    # 1) Distribuição de Crimes
     with tab1:
         st.header("Top 10 Crimes")
         vc = df['NATUREZA_APURADA'].value_counts()
         if vc.shape[0] > 1:
             top10 = vc.rename_axis('Crime').reset_index(name='Qtd').head(10)
             fig = px.bar(top10, x='Crime', y='Qtd',
-                         color='Qtd', color_continuous_scale='Blues',
-                         template='plotly_white')
+                         color='Qtd', color_continuous_scale='Blues', template='plotly_white')
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Selecione ao menos 2 categorias para comparar.")
 
-    # 2) Temporal (2024-2025, mês a mês)
+    # 2) Ocorrências Mês a Mês
     with tab2:
         st.header("Ocorrências Mês a Mês (2024-2025)")
-        # agrupa por MES_ANO (string 'MM/YYYY')
         mensal = df.groupby('MES_ANO').size().reset_index(name='Qtd')
-        # ordena cronologicamente convertendo para datetime
         mensal['dt'] = pd.to_datetime(mensal['MES_ANO'], format='%m/%Y', errors='coerce')
         mensal = mensal.sort_values('dt')
-        # exibe com rótulos de mês
         fig1 = px.bar(
             mensal, x='dt', y='Qtd',
             labels={'dt':'Mês/Ano','Qtd':'Ocorrências'},
-            title="Ocorrências Mês a Mês",
             template='plotly_white'
         )
-        fig1.update_xaxes(
-            tickformat='%b %Y',
-            dtick="M1"
-        )
+        fig1.update_xaxes(tickformat='%b %Y', dtick="M1")
         st.plotly_chart(fig1, use_container_width=True)
 
-    # 3) Municípios
+    # 3) Comparativo por Município
     with tab3:
         st.header("Comparativo por Município")
         vc_mun = df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].value_counts()
@@ -163,40 +154,3 @@ def main():
             fig = px.bar(mun_df, x='Município', y='Qtd',
                          color='Qtd', color_continuous_scale='Blues')
             st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Selecione ao menos 2 municípios para comparar.")
-
-    # 4) Rubricas
-    with tab4:
-        st.header("Comparativo por Rubrica")
-        vc_rub = df['RUBRICA'].value_counts()
-        if vc_rub.shape[0] > 1:
-            rub_df = vc_rub.rename_axis('Rubrica').reset_index(name='Qtd')
-            fig = px.bar(rub_df, x='Rubrica', y='Qtd',
-                         color='Qtd', color_continuous_scale='Blues')
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Selecione ao menos 2 rubricas para comparar.")
-
-    # 5) Endereços com distrital e contagem
-    with tab5:
-        st.header("Endereços das Ocorrências")
-        grp = (
-            df
-            .groupby(['LOGRADOURO','NUMERO_LOGRADOURO','BAIRRO','NOME_DELEGACIA_CIRCUNSCRIÇÃO'])
-            .size()
-            .reset_index(name='Quantidade')
-        )
-        grp = grp.rename(columns={
-            'LOGRADOURO':'Logradouro',
-            'NUMERO_LOGRADOURO':'Número',
-            'BAIRRO':'Bairro',
-            'NOME_DELEGACIA_CIRCUNSCRIÇÃO':'Delegacia'
-        }).sort_values('Quantidade', ascending=False)
-        st.dataframe(grp, use_container_width=True)
-
-    st.markdown("---")
-    st.caption("Dashboard desenvolvido para SP (2024–2025)")
-
-if __name__ == "__main__":
-    main()
