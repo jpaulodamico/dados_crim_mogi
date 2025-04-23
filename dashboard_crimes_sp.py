@@ -76,6 +76,9 @@ def load_data():
         else "Desconhecido",
         axis=1
     )
+    # Garante formato numérico em latitude e longitude
+    df['LATITUDE'] = pd.to_numeric(df.get('LATITUDE', None), errors='coerce')
+    df['LONGITUDE'] = pd.to_numeric(df.get('LONGITUDE', None), errors='coerce')
     return df
 
 def main():
@@ -94,31 +97,27 @@ def main():
     with st.sidebar:
         menu = option_menu(
             "📋 Navegação",
-            ["Distribuição", "Temporal", "Municípios", "Rubricas", "Mapas"],
-            icons=["bar-chart", "calendar", "geo-alt", "list-task", "map"],
+            ["Distribuição", "Temporal", "Municípios", "Rubricas", "ENDEREÇOS"],
+            icons=["bar-chart", "calendar", "geo-alt", "list-task", "house"],
             menu_icon="cast",
             default_index=0
         )
         st.header("Filtros")
 
-        # Período de registro
         anos = sorted(df['ANO_REGISTRO'].dropna().astype(int).unique())
         ano_sel = st.slider("Registro (anos)", min(anos), max(anos), (min(anos), max(anos)))
         df = df[(df['ANO_REGISTRO'] >= ano_sel[0]) & (df['ANO_REGISTRO'] <= ano_sel[1])]
 
-        # Municípios
         mun_opts = sorted(df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].dropna().unique())
         sel_muns = st.multiselect("Municípios", mun_opts, default=mun_opts[:3])
         if sel_muns:
             df = df[df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].isin(sel_muns)]
 
-        # Tipos de crime
         crime_opts = sorted(df['NATUREZA_APURADA'].dropna().unique())
         sel_crimes = st.multiselect("Natureza Apurada", crime_opts, default=crime_opts[:5])
         if sel_crimes:
             df = df[df['NATUREZA_APURADA'].isin(sel_crimes)]
 
-        # Rubricas e condutas
         rub_opts = sorted(df['RUBRICA'].dropna().unique())
         sel_rub = st.multiselect("Rubricas", rub_opts)
         if sel_rub:
@@ -149,7 +148,7 @@ def main():
         "📅 Temporal",
         "🏙️ Municípios",
         "📑 Rubricas",
-        "📍 Mapas"
+        "🏠 ENDEREÇOS"
     ])
 
     with tab1:
@@ -199,25 +198,17 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
 
     with tab5:
-        st.header("Mapa de Ocorrências")
-        geo = df.dropna(subset=['LATITUDE','LONGITUDE'])
-        if not geo.empty:
-            fig_map = px.scatter_mapbox(
-                geo,
-                lat="LATITUDE",
-                lon="LONGITUDE",
-                hover_name="LOGRADOURO",
-                hover_data=["NOME_MUNICIPIO_CIRCUNSCRIÇÃO","NATUREZA_APURADA"],
-                zoom=10,
-                height=600
-            )
-            fig_map.update_layout(
-                mapbox_style="open-street-map",
-                margin={"r":0,"t":0,"l":0,"b":0}
-            )
-            st.plotly_chart(fig_map, use_container_width=True)
-        else:
-            st.info("Sem coordenadas para plotar no mapa.")
+        st.header("Endereços das Ocorrências")
+        # Exibe logradouro, número e bairro
+        addr_cols = ['NOME_MUNICIPIO_CIRCUNSCRIÇÃO','LOGRADOURO','NUMERO_LOGRADOURO','BAIRRO']
+        addr_df = df[addr_cols].dropna(subset=['LOGRADOURO'])
+        addr_df = addr_df.rename(columns={
+            'NOME_MUNICIPIO_CIRCUNSCRIÇÃO': 'Município',
+            'LOGRADOURO': 'Logradouro',
+            'NUMERO_LOGRADOURO': 'Número',
+            'BAIRRO': 'Bairro'
+        })
+        st.dataframe(addr_df, use_container_width=True)
 
     st.markdown("---")
     st.caption("Dashboard desenvolvido para análise de dados criminais de SP (2024-2025)")
