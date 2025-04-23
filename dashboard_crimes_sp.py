@@ -1,11 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import pydeck as pdk
 import requests
 from streamlit_lottie import st_lottie
 from streamlit_option_menu import option_menu
-from datetime import datetime
 
 # 1) Configuração da página
 st.set_page_config(
@@ -56,7 +54,7 @@ def load_lottie(url):
         return r.json()
     return None
 
-# 4) Carregar e preparar os dados (igual à sua função original)
+# 4) Carregar e preparar os dados
 @st.cache_data
 def load_data():
     df = pd.read_csv('dados_criminais_limpos.csv')
@@ -84,7 +82,7 @@ def main():
     load_assets()
 
     # animação Lottie
-    lottie = load_lottie("https://lottie.host/70ea53ab-9142-4979-9e92-dfcb05f587a7/w3gn6bKXHD.json")
+    lottie = load_lottie("https://assets8.lottiefiles.com/packages/lf20_j1adxtyb.json")
     if lottie:
         st_lottie(lottie, height=120, key="crime")
 
@@ -163,13 +161,11 @@ def main():
                       template='plotly_white')
         fig1.update_layout(xaxis_title="", yaxis_title="Ocorrências", height=450)
 
-        # Distribuição local + horário
         hora = pd.to_datetime(df['HORA_OCORRENCIA_BO'], errors='coerce').dt.hour.value_counts().sort_index()
         fig2 = px.line(x=hora.index, y=hora.values,
                        title="Ocorrências por Hora", markers=True)
         fig2.update_layout(xaxis_title="Hora", yaxis_title="Qtd", height=450)
 
-        # grid container
         st.markdown('<div class="grid-container">', unsafe_allow_html=True)
         for fig in (fig1, fig2):
             st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -204,26 +200,22 @@ def main():
 
     with tab5:
         st.header("Mapa de Ocorrências")
-        # certifique-se de ter colunas LATITUDE e LONGITUDE no seu CSV
         geo = df.dropna(subset=['LATITUDE','LONGITUDE'])
         if not geo.empty:
-            mapa = pdk.Deck(
-                map_style="mapbox://styles/mapbox/light-v9",
-                initial_view_state=pdk.ViewState(
-                    latitude=geo['LATITUDE'].mean(),
-                    longitude=geo['LONGITUDE'].mean(),
-                    zoom=10
-                ),
-                layers=[pdk.Layer(
-                    "ScatterplotLayer",
-                    data=geo,
-                    get_position=["LONGITUDE","LATITUDE"],
-                    get_radius=50,
-                    get_color=[255,0,0,160],
-                    pickable=True
-                )]
+            fig_map = px.scatter_mapbox(
+                geo,
+                lat="LATITUDE",
+                lon="LONGITUDE",
+                hover_name="LOGRADOURO",
+                hover_data=["NOME_MUNICIPIO_CIRCUNSCRIÇÃO","NATUREZA_APURADA"],
+                zoom=10,
+                height=600
             )
-            st.pydeck_chart(mapa)
+            fig_map.update_layout(
+                mapbox_style="open-street-map",
+                margin={"r":0,"t":0,"l":0,"b":0}
+            )
+            st.plotly_chart(fig_map, use_container_width=True)
         else:
             st.info("Sem coordenadas para plotar no mapa.")
 
