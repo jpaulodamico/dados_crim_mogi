@@ -191,6 +191,7 @@ def load_data():
     
     # Cria campo para mês/ano formatado
     df['MES_ANO_FORMATADO'] = df['DATA_OCORRENCIA_BO'].dt.strftime('%b/%Y')
+    df['MES_ANO_REGISTRO_FORMATADO'] = df['DATA_REGISTRO'].dt.strftime('%b/%Y')
     
     # Cria campo para delegacia simplificada (remove prefixos comuns)
     df['DELEGACIA_SIMPLES'] = df['NOME_DELEGACIA_CIRCUNSCRIÇÃO'].apply(simplify_delegacia)
@@ -461,15 +462,32 @@ def main():
         st.header("Filtros Avançados")
         
         with st.expander("⏱️ Filtros Temporais", expanded=True):
-            # Filtro de intervalo de datas
-            min_date = df['DATA_OCORRENCIA_BO'].min().date()
-            max_date = df['DATA_OCORRENCIA_BO'].max().date()
+            # Filtro de mês e ano de REGISTRO (modificado conforme solicitado)
+            st.markdown("### Filtro por Data de Registro")
             
-            start_date, end_date = st.date_input(
-                "Período de Ocorrência",
-                value=(min_date, max_date),
-                min_value=min_date,
-                max_value=max_date
+            # Obter anos e meses disponíveis para registro
+            anos_registro = sorted(df['ANO_REGISTRO'].dropna().unique().astype(int).tolist())
+            
+            # Seletor de ano de registro
+            sel_anos_registro = st.multiselect(
+                "Anos de Registro",
+                options=anos_registro,
+                default=anos_registro[-2:] if len(anos_registro) >= 2 else anos_registro
+            )
+            
+            # Seletor de mês de registro (1-12)
+            meses_nomes = {
+                1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",
+                5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto",
+                9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro"
+            }
+            
+            meses_opcoes = list(range(1, 13))
+            sel_meses_registro = st.multiselect(
+                "Meses de Registro",
+                options=meses_opcoes,
+                format_func=lambda x: meses_nomes[x],
+                default=[]
             )
             
             # Filtro de período do dia
@@ -533,12 +551,12 @@ def main():
     # Aplicação dos filtros
     filtered_df = df.copy()
     
-    # Filtros temporais
-    if isinstance(start_date, date) and isinstance(end_date, date):
-        filtered_df = filtered_df[
-            (filtered_df['DATA_OCORRENCIA_BO'].dt.date >= start_date) &
-            (filtered_df['DATA_OCORRENCIA_BO'].dt.date <= end_date)
-        ]
+    # Filtros temporais - MODIFICADO para usar DATA_REGISTRO
+    if sel_anos_registro:
+        filtered_df = filtered_df[filtered_df['ANO_REGISTRO'].isin(sel_anos_registro)]
+    
+    if sel_meses_registro:
+        filtered_df = filtered_df[filtered_df['MES_REGISTRO'].isin(sel_meses_registro)]
     
     if sel_periodo:
         filtered_df = filtered_df[filtered_df['PERIODO_DIA'].isin(sel_periodo)]
