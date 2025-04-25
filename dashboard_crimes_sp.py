@@ -4,6 +4,7 @@ import plotly.express as px
 import requests
 from streamlit_lottie import st_lottie
 from streamlit_option_menu import option_menu
+from datetime import date
 
 # --- Configuração da página ---
 st.set_page_config(
@@ -46,7 +47,7 @@ def load_data():
     df['ANO_OCORRENCIA']     = df['DATA_OCORRENCIA_BO'].dt.year
     df['MES_OCORRENCIA']     = df['DATA_OCORRENCIA_BO'].dt.month
     df['DIA_SEMANA']         = df['DATA_OCORRENCIA_BO'].dt.day_name()
-    # Text columns
+    # Colunas de texto
     for c in ['DESCR_SUBTIPOLOCAL','BAIRRO','LOGRADOURO','NUMERO_LOGRADOURO',
               'NOME_DELEGACIA_CIRCUNSCRIÇÃO','NOME_MUNICIPIO_CIRCUNSCRIÇÃO',
               'RUBRICA','DESCR_CONDUTA','NATUREZA_APURADA','MES_ANO']:
@@ -54,9 +55,9 @@ def load_data():
             df[c] = df[c].fillna('').astype(str)
     return df
 
-# --- Main ---
+# --- Função principal ---
 def main():
-    # Apply styles and animation
+    # Aplica estilos e animação
     load_assets()
     lottie = load_lottie("https://assets8.lottiefiles.com/packages/lf20_j1adxtyb.json")
     if lottie:
@@ -65,10 +66,10 @@ def main():
     st.title("🚨 Dashboard de Dados Criminais - SP")
     st.markdown("### Análise interativa de ocorrências criminais (2024–2025)")
 
-    # Load data
+    # Carrega dados
     df = load_data()
 
-    # --- Sidebar filters ---
+    # --- Sidebar de filtros ---
     with st.sidebar:
         menu = option_menu(
             "📋 Navegação",
@@ -79,17 +80,22 @@ def main():
         )
         st.header("Filtros")
 
-        # Mês/Ano Ocorrência: only 2024 and 2025
-        all_mes_anos = sorted({m for m in df['MES_ANO'].unique() if m.endswith('/2024') or m.endswith('/2025')})
-        sel_ma = st.multiselect(
-            "Mês/Ano Ocorrência", 
-            options=all_mes_anos, 
-            default=all_mes_anos
+        # Filtro de intervalo de datas
+        min_date = df['DATA_OCORRENCIA_BO'].min().date()
+        max_date = df['DATA_OCORRENCIA_BO'].max().date()
+        start_date, end_date = st.date_input(
+            "Período de Ocorrência",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date
         )
-        if sel_ma:
-            df = df[df['MES_ANO'].isin(sel_ma)]
+        if isinstance(start_date, date) and isinstance(end_date, date):
+            df = df[
+                (df['DATA_OCORRENCIA_BO'].dt.date >= start_date) &
+                (df['DATA_OCORRENCIA_BO'].dt.date <= end_date)
+            ]
 
-        # Other filters (empty default)
+        # Outros filtros (sem seleção padrão)
         sel_mun  = st.multiselect("Municípios", sorted(df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].unique()), default=[])
         sel_nat  = st.multiselect("Natureza Apurada", sorted(df['NATUREZA_APURADA'].unique()), default=[])
         sel_rub  = st.multiselect("Rubricas", sorted(df['RUBRICA'].unique()), default=[])
@@ -108,7 +114,7 @@ def main():
         st.warning("Não há dados para os filtros selecionados.")
         return
 
-    # --- Key Metrics ---
+    # --- Métricas principais ---
     most_common = df['NATUREZA_APURADA'].mode().iloc[0] if not df.empty else "N/A"
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Ocorrências", f"{len(df):,}")
@@ -116,39 +122,36 @@ def main():
     c3.metric("Municípios", df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].nunique())
     c4.metric("Crime Mais Comum", most_common)
 
-    # --- Tabs ---
+    # --- Abas ---
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Distribuição","📅 Temporal","🏙 Municípios","📑 Rubricas","🏠 ENDEREÇOS"
     ])
 
-    # 1) Distribution
+    # 1) Distribuição de Crimes
     with tab1:
         st.header("Top 10 Crimes")
         vc = df['NATUREZA_APURADA'].value_counts()
         if vc.shape[0] > 1:
             top10 = vc.rename_axis('Crime').reset_index(name='Qtd').head(10)
             fig = px.bar(top10, x='Crime', y='Qtd',
-                         color='Qtd', color_continuous_scale='Blues',
-                         template='plotly_white')
+                         color='Qtd', color_continuous_scale='Blues', template='plotly_white')
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Selecione ao menos 2 categorias para comparar.")
 
-    # 2) Temporal (Month by month)
+    # 2) Temporal (Mês a Mês)
     with tab2:
-        st.header("Ocorrências Mês a Mês (2024-2025)")
-        mensal = df.groupby('MES_ANO').size().reset_index(name='Qtd')
-        mensal['dt'] = pd.to_datetime(mensal['MES_ANO'], format='%m/%Y', errors='coerce')
-        mensal = mensal.sort_values('dt')
+        st.header("Ocorrências Mês a Mês")
+        mensal = df.groupby(df['DATA_OCORRENCIA_BO'].dt.to_period('M')).size().reset_index(name='Qtd')
+        mensal['MÊS_ANO'] = mensal['DATA_OCORRENCIA_BO'].dt.strftime('%b %Y')
         fig = px.bar(
-            mensal, x='dt', y='Qtd',
-            labels={'dt':'Mês/Ano','Qtd':'Ocorrências'},
+            mensal, x='MÊS_ANO', y='Qtd',
+            labels={'MÊS_ANO':'Mês/Ano','Qtd':'Ocorrências'},
             template='plotly_white'
         )
-        fig.update_xaxes(tickformat='%b %Y', dtick="M1")
         st.plotly_chart(fig, use_container_width=True)
 
-    # 3) By Municipality
+    # 3) Comparativo por Município
     with tab3:
         st.header("Comparativo por Município")
         vc_mun = df['NOME_MUNICIPIO_CIRCUNSCRIÇÃO'].value_counts()
@@ -160,7 +163,7 @@ def main():
         else:
             st.info("Selecione ao menos 2 municípios para comparar.")
 
-    # 4) By Rubrica
+    # 4) Comparativo por Rubrica
     with tab4:
         st.header("Comparativo por Rubrica")
         vc_rub = df['RUBRICA'].value_counts()
@@ -172,7 +175,7 @@ def main():
         else:
             st.info("Selecione ao menos 2 rubricas para comparar.")
 
-    # 5) Addresses
+    # 5) Endereços das Ocorrências
     with tab5:
         st.header("Endereços das Ocorrências")
         grp = (
@@ -192,5 +195,5 @@ def main():
     st.markdown("---")
     st.caption("Dashboard desenvolvido para SP (2024–2025)")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
